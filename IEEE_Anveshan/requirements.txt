@@ -1,0 +1,7 @@
+mediapipe
+# mediapipe==0.10.21
+numpy
+open3d
+opencv_contrib_python
+opencv_python
+opencv_python_headless

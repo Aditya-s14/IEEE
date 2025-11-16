@@ -352,6 +352,33 @@
       color: var(--text);
       margin-bottom: 16px;
       letter-spacing: 2px;
+      font-family: 'Courier New', monospace;
+    }
+    
+    #fingerspellPopup .word-display .letter {
+      display: inline-block;
+      transition: all 0.3s ease;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    
+    #fingerspellPopup .word-display .letter.current {
+      color: var(--accent);
+      font-size: 2.2rem;
+      font-weight: 900;
+      transform: scale(1.3);
+      background: var(--accent-soft);
+      text-shadow: 0 0 10px var(--accent);
+      animation: pulse 0.6s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1.3);
+      }
+      50% {
+        transform: scale(1.4);
+      }
     }
     
     #fingerspellPopup .letter-info {
@@ -1574,7 +1601,7 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
       }
     }
     
-    // Update the popup content
+    // Update the popup content with highlighted current letter
     function updateFingerspellPopup(word, currentLetter, letterIndex, totalLetters) {
       const wordDisplay = document.getElementById('fingerspellWord');
       const letterInfo = document.getElementById('fingerspellLetterInfo');
@@ -1582,7 +1609,14 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
       const closeBtn = document.getElementById('fingerspellClose');
       
       if (wordDisplay) {
-        wordDisplay.textContent = word.toUpperCase();
+        // Build HTML with individual letter spans for highlighting
+        const letters = word.toUpperCase().split('');
+        const html = letters.map((letter, idx) => {
+          const isCurrent = currentLetter && idx === letterIndex;
+          const className = isCurrent ? 'letter current' : 'letter';
+          return `<span class="${className}">${letter}</span>`;
+        }).join('');
+        wordDisplay.innerHTML = html;
       }
       
       if (letterInfo) {
@@ -1599,7 +1633,7 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
           letterImage.src = imagePath;
           letterImage.alt = `ISL sign for letter ${currentLetter}`;
           letterImage.style.display = 'block';
-      } else {
+        } else {
           letterImage.style.display = 'none';
         }
       } else if (letterImage) {
@@ -1670,8 +1704,8 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
         
         displayedCount++;
         
-        // Update popup with current letter
-        updateFingerspellPopup(normalized, letter, displayedCount - 1, letters.length);
+        // Update popup with current letter (use 'i' for correct position in word)
+        updateFingerspellPopup(normalized, letter, i, letters.length);
         
         // Update main status (optional)
         setStatus(`Fingerspelling: ${normalized} [${letter}]`);

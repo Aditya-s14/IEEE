@@ -449,13 +449,6 @@
         <div class="card">
           <h3 class="card-title">Sentence Translation</h3>
           <div class="control-section">
-            <label for="languageSelect">Source Language</label>
-            <select id="languageSelect" style="padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-subtle); color: var(--text); margin-bottom: 12px;">
-              <option value="en">English</option>
-              <option value="hi">हिन्दी (Hindi)</option>
-              <option value="kn">ಕನ್ನಡ (Kannada)</option>
-            </select>
-            
             <label for="sentenceInput">Enter Text</label>
             <input id="sentenceInput" type="text" placeholder="Type a word or phrase…">
             <div class="row">
@@ -472,17 +465,6 @@
               <div class="glosses" id="glosses"></div>
             </div>
             <div id="warnings"></div>
-            
-            <!-- Multilingual Pipeline Debug Panel -->
-            <div id="pipelinePanel" style="display:none; margin-top: 12px; padding: 12px; background: var(--panel-subtle); border-radius: 8px; border: 1px solid var(--border);">
-              <div class="label" style="color: var(--accent); margin-bottom: 8px;">🌐 Multilingual Pipeline</div>
-              <div id="pipelineLanguage" style="font-size: 0.85rem; margin-bottom: 6px;"></div>
-              <div id="pipelineOriginal" style="font-size: 0.85rem; margin-bottom: 6px;"></div>
-              <div id="pipelineTokens" style="font-size: 0.85rem; margin-bottom: 6px;"></div>
-              <div id="pipelineGloss" style="font-size: 0.85rem; margin-bottom: 6px;"></div>
-              <div id="pipelineClassification" style="font-size: 0.85rem;"></div>
-            </div>
-            
             <div id="semanticPanel" class="semantic-panel">
               <div class="label">Semantic matches (toggle to keep/remove):</div>
               <div id="semanticMatches"></div>
@@ -729,340 +711,6 @@
     const AVAILABLE_WORD_SET = new Set(AVAILABLE_WORDS);
     const ALIAS_TO_CANONICAL = buildAliasMap(SEMANTIC_ALIASES);
     const RECOGNIZED_PHRASES = [...new Set([...AVAILABLE_WORDS, ...Object.keys(ALIAS_TO_CANONICAL)])];
-
-    // ========== MULTILINGUAL NLP PIPELINE MODULE ==========
-    /**
-     * This module implements a simple rule-based multilingual NLP pipeline
-     * that converts text from multiple languages (English, Hindi, Kannada) 
-     * into ISL gloss tokens (English canonical sign keys).
-     * 
-     * Architecture:
-     * 1. Language Selection (manual)
-     * 2. Tokenization (language-specific)
-     * 3. Lexicon Mapping (word → canonical sign key)
-     * 4. Gloss Token Generation (English canonical)
-     * 5. Classification (SIGN vs FINGERSPELL) - existing pipeline
-     */
-    
-    // Language state
-    let selectedLanguage = 'en'; // Default to English
-    
-    // ---------- Word-Level Lexicons ----------
-    // Map individual words/phrases from source language to ENGLISH canonical sign keys
-    
-    const hindiLexicon = {
-      // Days/Time
-      'सोमवार': 'monday',
-      'मंगलवार': 'tuesday',
-      'बुधवार': 'wednesday',
-      'गुरुवार': 'thursday',
-      'शुक्रवार': 'friday',
-      'शनिवार': 'saturday',
-      'रविवार': 'sunday',
-      'आज': 'today',
-      'कल': 'tomorrow',
-      'बीता कल': 'yesterday',
-      'सुबह': 'morning',
-      'दोपहर': 'afternoon',
-      'शाम': 'evening',
-      'रात': 'night',
-      
-      // Objects
-      'मोबाइल': 'mobile',
-      'कंप्यूटर': 'computer',
-      'बेडरूम': 'bedroom',
-      'घड़ी': 'clock',
-      'लैम्प': 'lamp',
-      'मेज़': 'table',
-      'मेज': 'table',
-      'पेन': 'pen',
-      'किताब': 'book',
-      'अख़बार': 'newspaper',
-      'अखबार': 'newspaper',
-      'कमीज़': 'shirt',
-      'कमीज': 'shirt',
-      'सूट': 'suit',
-      'रसोई': 'kitchen',
-      'पंखा': 'fan',
-      'तस्वीर': 'photograph',
-      'फोटो': 'photograph',
-      'पोशाक': 'dress',
-      'कपड़े': 'dress',
-      
-      // People
-      'पुरुष': 'male',
-      'आदमी': 'male',
-      'महिला': 'female',
-      'औरत': 'female',
-      
-      // Weapons/Conflict
-      'बंदूक': 'gun',
-      'युद्ध': 'war',
-      'शांति': 'peace',
-      
-      // Accessibility
-      'अंधे': 'blind',
-      'अंधा': 'blind',
-      'बहिरे': 'deaf',
-      'बहरा': 'deaf',
-      'ऊर्जा': 'energy',
-      'शक्ति': 'energy',
-      
-      // Common words (function words often ignored in ISL)
-      'को': null,  // preposition
-      'मैं': null,  // I
-      'और': null,  // and
-      'में': null,  // in
-      'देख': null,  // seeing
-      'रहा': null,  // continuous
-      'रही': null,  // continuous
-      'हूँ': null,  // am
-      'है': null,   // is
-      'हैं': null,  // are
-      'चालू': null, // on/active
-      'थे': null,   // were
-      'पड़े': null, // lying
-      'पर': null,   // on
-      'पहना': null, // wearing
-      'यहाँ': null, // here
-      'बैठे': null, // sitting
-      'से': null,   // from/with
-      'नहीं': null, // not
-      'मिलती': null, // gets
-      'लोगों': null, // people
-      'भी': null,   // also
-      'होती': null, // happens
-      'दोनों': null, // both
-      'यह': null,   // this
-      'बहुत': null, // very
-      'सुंदर': null // beautiful (could map to 'beautiful' if in dataset)
-    };
-    
-    const kannadaLexicon = {
-      // Days/Time
-      'ಸೋಮವಾರ': 'monday',
-      'ಸೋಮವಾರಕ್ಕೆ': 'monday',
-      'ಮಂಗಳವಾರ': 'tuesday',
-      'ಬುಧವಾರ': 'wednesday',
-      'ಗುರುವಾರ': 'thursday',
-      'ಶುಕ್ರವಾರ': 'friday',
-      'ಶನಿವಾರ': 'saturday',
-      'ಭಾನುವಾರ': 'sunday',
-      'ಇಂದು': 'today',
-      'ನಾಳೆ': 'tomorrow',
-      'ನಿನ್ನೆ': 'yesterday',
-      'ಬೆಳಿಗ್ಗೆ': 'morning',
-      'ಮಧ್ಯಾಹ್ನ': 'afternoon',
-      'ಸಂಜೆ': 'evening',
-      'ರಾತ್ರಿ': 'night',
-      
-      // Objects
-      'ಮೊಬೈಲ್': 'mobile',
-      'ಕಂಪ್ಯೂಟರ್': 'computer',
-      'ಬೆಡ್‌ರೂಮ್': 'bedroom',
-      'ಮಲಗುವ ಕೋಣೆ': 'bedroom',
-      'ಗಡಿಯಾರ': 'clock',
-      'ಲ್ಯಾಂಪ್': 'lamp',
-      'ದೀಪ': 'lamp',
-      'ಮೇಜು': 'table',
-      'ಮೇಜಿನ': 'table',
-      'ಪೆನ್': 'pen',
-      'ಪುಸ್ತಕ': 'book',
-      'ಪತ್ರಿಕೆ': 'newspaper',
-      'ಶರ್ಟ್': 'shirt',
-      'ಸೂಟ್': 'suit',
-      'ಅಡಿಗೆಮನೆ': 'kitchen',
-      'ಅಡಿಗೆಮನೆಯಲ್ಲು': 'kitchen',
-      'ಅಡಿಗೆಮನೆಯಲ್ಲಿ': 'kitchen',
-      'ಫ್ಯಾನ್': 'fan',
-      'ಫೋಟೋ': 'photograph',
-      'ಡ್ರೆಸ್': 'dress',
-      'ಉಡುಗೆ': 'dress',
-      
-      // People
-      'ಗಂಡು': 'male',
-      'ಪುರುಷ': 'male',
-      'ಹೆಣ್ಣು': 'female',
-      'ಮಹಿಳೆ': 'female',
-      
-      // Weapons/Conflict
-      'ಗನ್': 'gun',
-      'ಬಂದೂಕು': 'gun',
-      'ಯುದ್ಧ': 'war',
-      'ಶಾಂತಿ': 'peace',
-      
-      // Accessibility
-      'ಕಾಣದವರು': 'blind',
-      'ಕುರುಡ': 'blind',
-      'ಕೇಳದವರು': 'deaf',
-      'ಕಿವುಡ': 'deaf',
-      'ಎನರ್ಜಿ': 'energy',
-      'ಶಕ್ತಿ': 'energy',
-      
-      // Common function words (null = ignore in ISL gloss)
-      'ನಾನು': null,  // I
-      'ಮತ್ತು': null,  // and
-      'ಅಥವಾ': null,  // or
-      'ಒಂದು': null,  // a/one
-      'ಇದು': null,   // this
-      'ಆದು': null,   // that
-      'ಅವರು': null,  // they/he/she
-      'ಇದ್ದಾರೆ': null, // are
-      'ಇದೆ': null,   // is/are
-      'ಇದ್ದವು': null, // were
-      'ಮತ್ತೆ': null, // again
-      'ಕೂಡ': null,   // also
-      'ಮೇಲೆ': null,  // on
-      'ಸುಂದರ': null  // beautiful
-    };
-    
-    const englishLexicon = {
-      // Normalization mappings (cellphone → phone, etc.)
-      // Most handled by existing SEMANTIC_ALIASES
-      'cellphone': 'cell phone',
-      'mobile': 'cell phone',
-      'smartphone': 'cell phone'
-    };
-    
-    // ---------- Tokenization & Normalization ----------
-    
-    /**
-     * Tokenize and normalize text based on language
-     * @param {string} text - Input text
-     * @param {string} lang - Language code ('en', 'hi', 'kn')
-     * @returns {Array<string>} - Array of tokens
-     */
-    function tokenizeAndNormalize(text, lang) {
-      if (!text) return [];
-      
-      // Basic tokenization: split on whitespace and common punctuation
-      const tokens = text
-        .replace(/[।॥|,!?;:.()]/g, ' ')  // Replace punctuation with space (includes Devanagari danda)
-        .split(/\s+/)
-        .filter(t => t.length > 0);
-      
-      if (lang === 'en') {
-        // English: lowercase
-        return tokens.map(t => t.toLowerCase());
-      } else if (lang === 'hi' || lang === 'kn') {
-        // Hindi/Kannada: keep original script, but try some normalization
-        return tokens.map(t => {
-          // Remove common suffixes for better matching
-          // (very simple heuristic - could be expanded)
-          return t.trim();
-        });
-      }
-      
-      return tokens;
-    }
-    
-    /**
-     * Get gloss tokens from original text using language-specific lexicons
-     * @param {string} originalText - User input text
-     * @param {string} selectedLanguage - Language code
-     * @returns {Object} - { glossTokens, debugInfo }
-     */
-    function getGlossTokens(originalText, selectedLanguage) {
-      const tokens = tokenizeAndNormalize(originalText, selectedLanguage);
-      const glossTokens = [];
-      const mappingInfo = [];
-      let unmappedCount = 0;
-      
-      for (const token of tokens) {
-        let mapped = null;
-        
-        if (selectedLanguage === 'en') {
-          // English: use existing alias system + englishLexicon
-          mapped = englishLexicon[token] || token;
-          mappingInfo.push({ original: token, mapped, status: 'direct' });
-          glossTokens.push(mapped);
-          
-        } else if (selectedLanguage === 'hi') {
-          // Hindi: look up in hindiLexicon
-          if (hindiLexicon.hasOwnProperty(token)) {
-            mapped = hindiLexicon[token];
-            if (mapped === null) {
-              // Function word - skip in ISL
-              mappingInfo.push({ original: token, mapped: '(function word)', status: 'ignored' });
-            } else {
-              mappingInfo.push({ original: token, mapped, status: 'mapped' });
-              glossTokens.push(mapped);
-            }
-          } else {
-            // Unknown Hindi word
-            mappingInfo.push({ original: token, mapped: '(not in lexicon)', status: 'unmapped' });
-            unmappedCount++;
-          }
-          
-        } else if (selectedLanguage === 'kn') {
-          // Kannada: look up in kannadaLexicon
-          if (kannadaLexicon.hasOwnProperty(token)) {
-            mapped = kannadaLexicon[token];
-            if (mapped === null) {
-              // Function word - skip in ISL
-              mappingInfo.push({ original: token, mapped: '(function word)', status: 'ignored' });
-            } else {
-              mappingInfo.push({ original: token, mapped, status: 'mapped' });
-              glossTokens.push(mapped);
-            }
-          } else {
-            // Unknown Kannada word
-            mappingInfo.push({ original: token, mapped: '(not in lexicon)', status: 'unmapped' });
-            unmappedCount++;
-          }
-        }
-      }
-      
-      return {
-        glossTokens,
-        debugInfo: {
-          language: selectedLanguage,
-          originalText,
-          tokens,
-          mappingInfo,
-          unmappedCount,
-          totalTokens: tokens.length
-        }
-      };
-    }
-    
-    /**
-     * Display multilingual pipeline info in UI
-     */
-    function displayPipelineInfo(debugInfo, classification) {
-      const panel = document.getElementById('pipelinePanel');
-      if (!panel) return;
-      
-      const langNames = { en: 'English', hi: 'Hindi (हिन्दी)', kn: 'Kannada (ಕನ್ನಡ)' };
-      
-      document.getElementById('pipelineLanguage').innerHTML = 
-        `<strong>Language:</strong> ${langNames[debugInfo.language] || debugInfo.language}`;
-      
-      document.getElementById('pipelineOriginal').innerHTML = 
-        `<strong>Original:</strong> ${debugInfo.originalText}`;
-      
-      document.getElementById('pipelineTokens').innerHTML = 
-        `<strong>Tokens:</strong> [${debugInfo.tokens.map(t => `"${t}"`).join(', ')}]`;
-      
-      document.getElementById('pipelineGloss').innerHTML = 
-        `<strong>Mapped Gloss:</strong> [${debugInfo.mappingInfo
-          .filter(m => m.status === 'mapped')
-          .map(m => `${m.original}→"${m.mapped}"`).join(', ') || '(none)'}]`;
-      
-      if (classification) {
-        const signWords = classification.filter(c => c.type === 'SIGN').map(c => c.token);
-        const fingerspellWords = classification.filter(c => c.type === 'FINGERSPELL').map(c => c.token);
-        
-        document.getElementById('pipelineClassification').innerHTML = 
-          `<strong>Classification:</strong> ` +
-          `SIGN: [${signWords.join(', ') || 'none'}] | ` +
-          `FINGERSPELL: [${fingerspellWords.join(', ') || 'none'}]`;
-      }
-      
-      panel.style.display = 'block';
-    }
-    
-    // ========== END MULTILINGUAL NLP PIPELINE MODULE ==========
 
     const SEMANTIC_CATEGORY_KEYWORDS = {
       greeting: ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'how are you'],
@@ -1402,9 +1050,6 @@
     }
 
     // ---------- Hindi to English Sentence Mapping ----------
-    // DEPRECATED: This full-sentence mapping is no longer used.
-    // We now use the word-level lexicon approach in the MULTILINGUAL NLP PIPELINE MODULE.
-    // Kept here for reference only.
     const HINDI_TO_ENGLISH_MAP = {
       "आज सोमवार को मैं मोबाइल और कंप्यूटर देख रहा हूँ।": "Monday mobile computer",
       "सुबह बेडरूम में घड़ी और लैम्प चालू थे।": "bedroom clock lamp",
@@ -1421,38 +1066,22 @@
     // ---------- ISL Grammar Conversion (Longest-Match-First Algorithm) ----------
     async function convertSentenceToGloss(sentence) {
       let original = sentence.trim();
-      if (!original) return { tokens: [], semanticApplied: [], currentGlosses: [], pipelineDebug: null };
+      if (!original) return { tokens: [], semanticApplied: [], currentGlosses: [] };
 
-      // ========== MULTILINGUAL PIPELINE ==========
-      // Use new multilingual NLP pipeline to get gloss tokens
-      const { glossTokens, debugInfo } = getGlossTokens(original, selectedLanguage);
-      
-      // Error handling: if no gloss tokens found for non-English
-      if (selectedLanguage !== 'en' && glossTokens.length === 0) {
-        console.warn('⚠️ No gloss tokens generated. Lexicon may be incomplete.');
-        return { 
-          tokens: [], 
-          semanticApplied: [], 
-          currentGlosses: [],
-          pipelineDebug: debugInfo,
-          error: 'Lexicon incomplete - no mappable words found in this sentence.'
-        };
+      // Check if input matches a Hindi sentence and convert to English
+      if (HINDI_TO_ENGLISH_MAP[original]) {
+        console.log(`Hindi sentence detected: "${original}"`);
+        console.log(`Converting to: "${HINDI_TO_ENGLISH_MAP[original]}"`);
+        original = HINDI_TO_ENGLISH_MAP[original];
       }
-      
-      console.log('🌐 Multilingual Pipeline:', debugInfo);
-      console.log('📝 Gloss tokens:', glossTokens);
-      
-      // Now process gloss tokens as if they were English input
-      // This allows us to reuse phrase matching, lemmatization, etc.
-      const processedInput = glossTokens.join(' ');
-      
-      const cleaned = processedInput
+
+      const cleaned = original
         .replace(/[.,!?;:]/g, '')
-        .replace(/[''"]/g, '')
+        .replace(/['’"]/g, '')
         .replace(/[-/]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
-      if (!cleaned) return { tokens: [], semanticApplied: [], currentGlosses: [], pipelineDebug: debugInfo };
+      if (!cleaned) return { tokens: [], semanticApplied: [], currentGlosses: [] };
 
       const rawWords = cleaned.split(' ');
       const normalizedWords = rawWords.map(w => w.toLowerCase());
@@ -1501,7 +1130,7 @@
       const semanticApplied = await applySemanticFallback(tokens);
       const currentGlosses = buildGlossSequence(tokens);
 
-      return { tokens, semanticApplied, currentGlosses, pipelineDebug: debugInfo };
+      return { tokens, semanticApplied, currentGlosses };
     }
 
     // ---------- Real-time Dataset Preview ----------
@@ -1761,50 +1390,8 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
       setStatus('Converting sentence …');
       const panel = document.getElementById('semanticPanel');
       if (panel) panel.style.display = 'none';
-      
-      // Update selected language from dropdown
-      const langSelect = document.getElementById('languageSelect');
-      if (langSelect) {
-        selectedLanguage = langSelect.value;
-      }
-      
       try {
         lastConversion = await convertSentenceToGloss(sentence);
-        
-        // Handle lexicon error
-        if (lastConversion.error) {
-          console.warn('⚠️ Lexicon error:', lastConversion.error);
-          const warningsEl = document.getElementById('warnings');
-          if (warningsEl) {
-            warningsEl.innerHTML = `
-              <div style="background: var(--warn-bg, #fef3cd); color: var(--warn-text, #856404); 
-                          padding: 12px; border-radius: 8px; margin: 8px 0; border: 1px solid var(--warn-border, #ffeeba);">
-                <strong>⚠️ Incomplete Lexicon:</strong> ${lastConversion.error}
-                <br><small>The pipeline is designed to expand as we add more vocabulary.</small>
-              </div>
-            `;
-          }
-          setStatus('Lexicon incomplete');
-        } else {
-          // Clear previous warnings
-          const warningsEl = document.getElementById('warnings');
-          if (warningsEl) warningsEl.innerHTML = '';
-        }
-        
-        // Display multilingual pipeline debug info
-        if (lastConversion.pipelineDebug) {
-          // Collect classification info
-          const classification = lastConversion.tokens.map(token => {
-            const canonical = token.kind === 'match' ? token.canonical : (token.lemma || token.normalized);
-            const isInDataset = AVAILABLE_WORD_SET.has(canonical.toLowerCase());
-            return {
-              token: canonical,
-              type: isInDataset ? 'SIGN' : 'FINGERSPELL'
-            };
-          });
-          displayPipelineInfo(lastConversion.pipelineDebug, classification);
-        }
-        
         refreshConversionViews();
       } catch (err) {
         console.error('Sentence conversion failed:', err);
@@ -2860,23 +2447,6 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
     if (sentenceInputEl) {
       sentenceInputEl.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') runSentenceConversion(sentenceInputEl.value || '');
-      });
-    }
-    
-    // Language selector: update placeholder dynamically
-    const langSelect = document.getElementById('languageSelect');
-    if (langSelect && sentenceInputEl) {
-      const placeholderExamples = {
-        en: 'Monday mobile computer',
-        hi: 'सोमवार मोबाइल कंप्यूटर',
-        kn: 'ಸೋಮವಾರ ಮೊಬೈಲ್ ಕಂಪ್ಯೂಟರ್'
-      };
-      langSelect.addEventListener('change', (e) => {
-        const lang = e.target.value;
-        sentenceInputEl.placeholder = placeholderExamples[lang] || 'Type a word or phrase…';
-        // Clear pipeline panel when switching languages
-        const pipelinePanel = document.getElementById('pipelinePanel');
-        if (pipelinePanel) pipelinePanel.style.display = 'none';
       });
     }
     

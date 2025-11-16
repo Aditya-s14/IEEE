@@ -295,6 +295,106 @@
       cursor: pointer;
       background: transparent;
     }
+    
+    /* ========== Image-Based Fingerspelling Popup ========== */
+    #fingerspellPopup {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(145deg, #1e293b, #0f172a);
+      border: 2px solid var(--accent);
+      border-radius: 16px;
+      padding: 24px 32px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      z-index: 10000;
+      min-width: 320px;
+      max-width: 500px;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    
+    #fingerspellPopup.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0);
+    }
+    
+    #fingerspellPopup.visible {
+      animation: slideUp 0.3s ease;
+    }
+    
+    @keyframes slideUp {
+      from {
+        transform: translateX(-50%) translateY(20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+      }
+    }
+    
+    #fingerspellPopup .popup-header {
+      font-size: 0.9rem;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    #fingerspellPopup .word-display {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 16px;
+      letter-spacing: 2px;
+    }
+    
+    #fingerspellPopup .letter-info {
+      font-size: 0.85rem;
+      color: var(--text-soft);
+      margin-bottom: 16px;
+    }
+    
+    #fingerspellPopup .letter-image-container {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      min-height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    #fingerspellPopup .letter-image {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+    
+    #fingerspellPopup .close-btn {
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 12px;
+      transition: all 0.2s ease;
+    }
+    
+    #fingerspellPopup .close-btn:hover {
+      background: var(--text);
+      transform: translateY(-2px);
+    }
   </style>
 </head>
 <body>
@@ -392,6 +492,17 @@
 
       </div>
     </div>
+  </div>
+
+  <!-- Image-Based Fingerspelling Popup -->
+  <div id="fingerspellPopup">
+    <div class="popup-header">Fingerspelling</div>
+    <div class="word-display" id="fingerspellWord"></div>
+    <div class="letter-info" id="fingerspellLetterInfo"></div>
+    <div class="letter-image-container">
+      <img id="fingerspellLetterImage" class="letter-image" src="" alt="Letter sign">
+    </div>
+    <button class="close-btn" id="fingerspellClose" style="display:none;">Close</button>
   </div>
 
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
@@ -594,22 +705,21 @@
       apiKey: window.ISL_EMBEDDING_API_KEY || null
     };
 
-    // ---------- Fingerspelling Configuration ----------
+    // ---------- Image-Based Fingerspelling Configuration ----------
     const FINGERSPELLING_ENABLED = true;
     
-    // Mapping for manual alphabet signs (A-Z)
-    // Assumes canonical files named like: A_canonical_median.json, B_canonical_median.json, etc.
-    const MANUAL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    // Image-based fingerspelling: Simple popup showing letter images
+    // NOTE: This is a proof-of-concept using static images.
+    // In production, this could be replaced with animated 3D hand poses or video.
+    const FINGERSPELL_IMAGE_PATH = 'ISL_FINGERSPELL/';
+    const FINGERSPELL_LETTER_DELAY_MS = 600; // Time to show each letter
+    const FINGERSPELL_END_DELAY_MS = 800; // Time to show complete word before closing
     
-    // Check if a letter sign exists in the dataset
-    const AVAILABLE_LETTERS = new Set();
-    
-    // Fingerspelling state for sentence playback
+    // Fingerspelling state
     const fingerspellingState = {
       active: false,
-      originalWord: '',
-      letters: [],
-      currentLetterIndex: 0
+      currentWord: '',
+      popupElement: null
     };
 
     const semanticIndexState = {
@@ -1392,41 +1502,197 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
       return { arr, localFps: Math.max(1, Math.min(120, Number(localFps) || 30)) };
     }
 
-    // ---------- Fingerspelling Utilities ----------
+    // ========== NEW: Image-Based Fingerspelling Utilities ==========
     
-    // Normalize word to letters only (remove punctuation, convert to uppercase)
-    function normalizeWordForSpelling(word) {
-      return word.toUpperCase().replace(/[^A-Z]/g, '');
+    /**
+     * Image-based fingerspelling: Shows a simple popup with letter images
+     * 
+     * This is a proof-of-concept using static images (ISL_FINGERSPELL/*.jpg).
+     * In a production system, this could be replaced with:
+     * - Animated 3D hand models showing letter transitions
+     * - Video clips of a real signer demonstrating each letter
+     * - Real-time pose generation from a trained model
+     * 
+     * The benefit: No keypoint/skeleton rendering needed, much simpler for demo purposes.
+     */
+    
+    // Map letter to image filename (handles both uppercase and numbers)
+    function getLetterImagePath(char) {
+      const upper = char.toUpperCase();
+      // Check if it's A-Z or 0-9
+      if (/^[A-Z0-9]$/.test(upper)) {
+        return `${FINGERSPELL_IMAGE_PATH}${upper}.jpg`;
+      }
+      // Return null for unsupported characters (spaces, punctuation, etc.)
+      return null;
     }
     
-    // Check if a letter sign exists in the canonical dataset
-    async function checkLetterAvailable(letter) {
-      if (AVAILABLE_LETTERS.has(letter)) return true;
-      try {
-        const url = `canonical/${letter}_canonical_median.json`;
-        const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
-        if (res.ok) {
-          AVAILABLE_LETTERS.add(letter);
-          return true;
+    // Initialize the popup (called once on page load)
+    function initFingerspellPopup() {
+      const popup = document.getElementById('fingerspellPopup');
+      const closeBtn = document.getElementById('fingerspellClose');
+      
+      if (!popup) {
+        console.error('❌ Fingerspell popup element not found! Make sure #fingerspellPopup exists in the DOM.');
+        return;
+      }
+      
+      console.log('✅ Fingerspell popup initialized successfully');
+      fingerspellingState.popupElement = popup;
+      
+      // Close button handler
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          hideFingerspellPopup();
+        });
+      } else {
+        console.warn('Close button not found for fingerspell popup');
+      }
+    }
+    
+    // Show the popup
+    function showFingerspellPopup() {
+      if (fingerspellingState.popupElement) {
+        console.log('📢 Showing fingerspell popup');
+        fingerspellingState.popupElement.classList.add('visible');
+      } else {
+        console.error('Cannot show popup - popup element not initialized');
+      }
+    }
+    
+    // Hide the popup
+    function hideFingerspellPopup() {
+      if (fingerspellingState.popupElement) {
+        console.log('📢 Hiding fingerspell popup');
+        fingerspellingState.popupElement.classList.remove('visible');
+        fingerspellingState.active = false;
+        fingerspellingState.currentWord = '';
+      }
+    }
+    
+    // Update the popup content
+    function updateFingerspellPopup(word, currentLetter, letterIndex, totalLetters) {
+      const wordDisplay = document.getElementById('fingerspellWord');
+      const letterInfo = document.getElementById('fingerspellLetterInfo');
+      const letterImage = document.getElementById('fingerspellLetterImage');
+      const closeBtn = document.getElementById('fingerspellClose');
+      
+      if (wordDisplay) {
+        wordDisplay.textContent = word.toUpperCase();
+      }
+      
+      if (letterInfo) {
+        if (currentLetter) {
+          letterInfo.textContent = `Letter ${letterIndex + 1} of ${totalLetters}: ${currentLetter.toUpperCase()}`;
+        } else {
+          letterInfo.textContent = 'Complete!';
         }
-      } catch (e) {
-        // Letter not available
       }
-      return false;
+      
+      if (letterImage && currentLetter) {
+        const imagePath = getLetterImagePath(currentLetter);
+        if (imagePath) {
+          letterImage.src = imagePath;
+          letterImage.alt = `ISL sign for letter ${currentLetter}`;
+          letterImage.style.display = 'block';
+      } else {
+          letterImage.style.display = 'none';
+        }
+      } else if (letterImage) {
+        letterImage.style.display = 'none';
+      }
+      
+      // Show close button when complete
+      if (closeBtn) {
+        closeBtn.style.display = currentLetter ? 'none' : 'inline-block';
+      }
     }
     
-    // Load a single letter sign
-    async function loadLetterSign(letter) {
-      const url = `canonical/${letter}_canonical_median.json`;
-      try {
-        const res = await fetch(url, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        return { success: true, json, letter };
-      } catch (e) {
-        console.error(`Error loading letter ${letter}:`, e);
-        return { success: false, error: e.message, letter };
+    /**
+     * Main fingerspelling function: Spell out a word letter by letter
+     * @param {string} word - The word to fingerspell
+     * @returns {Promise<boolean>} - True if successful, false otherwise
+     */
+    async function fingerspell(word) {
+      if (!word || typeof word !== 'string') {
+        console.warn('Cannot fingerspell: invalid word', word);
+        return false;
       }
+
+      // Normalize: remove punctuation, keep only letters and numbers
+      const normalized = word.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      
+      if (normalized.length === 0) {
+        console.warn('Cannot fingerspell: no valid characters in word', word);
+        return false;
+      }
+      
+      console.log(`🤟 Fingerspelling word: ${normalized}`);
+
+      fingerspellingState.active = true;
+      fingerspellingState.currentWord = normalized;
+      
+      // Show popup
+      showFingerspellPopup();
+      
+      // Iterate through letters
+      const letters = normalized.split('');
+      let displayedCount = 0;
+      
+      for (let i = 0; i < letters.length; i++) {
+        const letter = letters[i];
+        const imagePath = getLetterImagePath(letter);
+        
+        if (!imagePath) {
+          console.warn(`Skipping unsupported character: ${letter}`);
+          continue;
+        }
+        
+        // Check if image exists (preload)
+        const img = new Image();
+        const imageLoaded = await new Promise(resolve => {
+          img.onload = () => resolve(true);
+          img.onerror = () => {
+            console.warn(`Image not found for letter: ${letter} at ${imagePath}`);
+            resolve(false);
+          };
+          img.src = imagePath;
+        });
+        
+        if (!imageLoaded) {
+          console.warn(`Skipping letter ${letter} - image not available`);
+          continue;
+        }
+        
+        displayedCount++;
+        
+        // Update popup with current letter
+        updateFingerspellPopup(normalized, letter, displayedCount - 1, letters.length);
+        
+        // Update main status (optional)
+        setStatus(`Fingerspelling: ${normalized} [${letter}]`);
+        
+        // Wait before next letter
+        await new Promise(resolve => setTimeout(resolve, FINGERSPELL_LETTER_DELAY_MS));
+      }
+      
+      if (displayedCount === 0) {
+        console.warn(`No displayable letters in word: ${normalized}`);
+        hideFingerspellPopup();
+        return false;
+      }
+      
+      // All letters shown - display completion
+      updateFingerspellPopup(normalized, null, 0, letters.length);
+      setStatus(`Fingerspelling complete: ${normalized}`);
+      
+      // Wait a bit before auto-closing (or user can click close button)
+      await new Promise(resolve => setTimeout(resolve, FINGERSPELL_END_DELAY_MS));
+      
+      // Auto-hide (user can also manually close)
+      hideFingerspellPopup();
+      
+      return true;
     }
 
     // ---------- Sequential Sentence Playback ----------
@@ -1444,85 +1710,8 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
       }
     }
 
-    // Play a single letter as part of fingerspelling
-    async function playNextLetterInSpelling() {
-      if (!fingerspellingState.active || 
-          fingerspellingState.currentLetterIndex >= fingerspellingState.letters.length) {
-        // Done with fingerspelling this word
-        fingerspellingState.active = false;
-        if (sentenceMode.active) {
-          sentenceMode.currentIndex++;
-          await playNextWordInSentence();
-        }
-        return;
-      }
-
-      const letter = fingerspellingState.letters[fingerspellingState.currentLetterIndex];
-      const progress = `${fingerspellingState.currentLetterIndex + 1}/${fingerspellingState.letters.length}`;
-      
-      document.getElementById('sentenceProgress').textContent = 
-        `Fingerspelling: ${fingerspellingState.originalWord} (${letter} - ${progress})`;
-      setStatus(`fingerspelling: ${fingerspellingState.originalWord} [${letter}]`);
-
-      const result = await loadLetterSign(letter);
-      
-      if (result.success) {
-        const { arr, localFps } = normalizeJson(result.json);
-        if (arr && arr.length) {
-          frames = arr;
-          fps = localFps;
-          frameIndex = 0;
-          pausedAt = 0;
-          
-          // Play this letter's real world emulation
-          playing = true;
-          startTime = performance.now();
-          raf = requestAnimationFrame(tick);
-          
-          // Wait for the letter emulation to complete
-          await waitForWordComplete(arr.length);
-          
-          if (fingerspellingState.active) {
-            fingerspellingState.currentLetterIndex++;
-            await playNextLetterInSpelling();
-          }
-        } else {
-          console.warn(`No frames for letter ${letter}, skipping`);
-          fingerspellingState.currentLetterIndex++;
-          await playNextLetterInSpelling();
-        }
-      } else {
-        console.warn(`Could not load letter ${letter}, skipping`);
-        fingerspellingState.currentLetterIndex++;
-        await playNextLetterInSpelling();
-      }
-    }
-
-    // Start fingerspelling a word letter-by-letter
-    async function startFingerspelling(word) {
-      const normalized = normalizeWordForSpelling(word);
-      if (!normalized || normalized.length === 0) {
-        console.warn(`Cannot fingerspell empty word: ${word}`);
-        return false;
-      }
-
-      const letters = normalized.split('');
-      
-      // Check if at least some letters are available
-      const checks = await Promise.all(letters.slice(0, 3).map(checkLetterAvailable));
-      if (!checks.some(available => available)) {
-        console.warn(`No letter signs available for fingerspelling: ${word}`);
-        return false;
-      }
-
-      fingerspellingState.active = true;
-      fingerspellingState.originalWord = word.toUpperCase();
-      fingerspellingState.letters = letters;
-      fingerspellingState.currentLetterIndex = 0;
-
-      await playNextLetterInSpelling();
-      return true;
-    }
+    // OLD KEYPOINT-BASED FINGERSPELLING REMOVED
+    // Now using simple image-based popup (see fingerspell() function above)
 
     async function playNextWordInSentence() {
       if (!sentenceMode.active || sentenceMode.currentIndex >= sentenceMode.glosses.length) {
@@ -1571,17 +1760,17 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
           await playNextWordInSentence();
         }
       } else {
-        // Word not found - try fingerspelling fallback
+        // Word not found - use new image-based fingerspelling fallback
         if (FINGERSPELLING_ENABLED) {
-          setStatus(`Word not found: ${word} - attempting fingerspelling...`);
-          const fingerspelled = await startFingerspelling(word);
-          if (fingerspelled) {
-            // Fingerspelling will handle moving to next word
+          setStatus(`Word not found: ${word} - fingerspelling...`);
+          await fingerspell(word);
+          // Move to next word after fingerspelling completes
+          sentenceMode.currentIndex++;
+          await playNextWordInSentence();
             return;
-          }
         }
         
-        // Fingerspelling failed or disabled, skip word
+        // Fingerspelling disabled, skip word
         setStatus(`Error loading ${word}: ${result.error} (skipped)`);
         sentenceMode.currentIndex++;
         await playNextWordInSentence();
@@ -1619,9 +1808,8 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
       sentenceMode.active = false;
       sentenceMode.currentIndex = 0;
       
-      // Stop fingerspelling if active
-      fingerspellingState.active = false;
-      fingerspellingState.currentLetterIndex = 0;
+      // Stop fingerspelling if active - hide popup
+      hideFingerspellPopup();
       
       playing = false;
       if (raf) cancelAnimationFrame(raf);
@@ -2289,9 +2477,13 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
     ptColorEl.addEventListener('input', () => { ptSwatch.style.background = ptColorEl.value; });
     edgeColorEl.addEventListener('input', () => { edgeSwatch.style.background = edgeColorEl.value; });
 
+    // Initialize the image-based fingerspelling popup
+    initFingerspellPopup();
+    
     attachVoiceButton();
     setStatus('ready - enter a sentence to convert to ISL glosses'); updateHud();
     refreshConversionViews();
   </script>
+
 </body>
 </html>

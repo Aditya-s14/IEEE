@@ -318,33 +318,14 @@
       <!-- RIGHT: Control Panel (30-35%) -->
       <div class="control-panel">
         
-        <!-- API Configuration Card -->
-        <div class="card">
-          <h3 class="card-title">⚙️ Translation Settings</h3>
-          <div class="control-section">
-            <label for="claudeApiKey">Claude API Key (for Indian language translation)</label>
-            <input id="claudeApiKey" type="password" placeholder="Enter your Claude API key...">
-            <div class="row">
-              <button id="saveApiKeyBtn">Save API Key</button>
-              <button id="clearApiKeyBtn">Clear</button>
-            </div>
-            <div id="apiKeyStatus" class="muted">No API key configured</div>
-            <label class="inline" style="margin-top: 10px;">
-              <input type="checkbox" id="autoTranslate" checked> 
-              Auto-translate Indian languages to English
-            </label>
-          </div>
-        </div>
-
         <!-- Sentence Input Card -->
         <div class="card">
           <h3 class="card-title">Sentence Translation</h3>
           <div class="control-section">
-            <label for="sentenceInput">Enter Text (Any Indian Language or English)</label>
-            <input id="sentenceInput" type="text" placeholder="Type in Hindi, Bengali, Tamil, Telugu, or English…">
-            <div id="translationStatus" class="muted" style="margin-top: 5px; color: var(--accent);"></div>
+            <label for="sentenceInput">Enter Text</label>
+            <input id="sentenceInput" type="text" placeholder="Type a word or phrase…">
             <div class="row">
-              <button id="convertBtn">Convert to ISL</button>
+              <button id="convertBtn">Convert</button>
               <button id="voiceBtn" type="button">🎙 Speak</button>
             </div>
             <div id="voiceStatus">Voice: checking support…</div>
@@ -927,10 +908,31 @@
       return { willFingerSpell };
     }
 
+    // ---------- Hindi to English Sentence Mapping ----------
+    const HINDI_TO_ENGLISH_MAP = {
+      "आज सोमवार को मैं मोबाइल और कंप्यूटर देख रहा हूँ।": "Monday mobile computer",
+      "सुबह बेडरूम में घड़ी और लैम्प चालू थे।": "bedroom clock lamp",
+      "मेज़ पर पेन, किताब और अख़बार पड़े हैं।": "pen book newspaper",
+      "मैंने आज कमीज़ और सूट पहना है।": "shirt suit",
+      "रसोई में पंखा और लैम्प चालू है।": "kitchen fan lamp",
+      "यह तस्वीर बहुत सुंदर है।": "photograph",
+      "यह पोशाक सस्ती नहीं, महंगी है।": "dress",
+      "पुरुष और महिला दोनों यहाँ बैठे हैं।": "male female",
+      "बंदूक और युद्ध से शांति नहीं मिलती।": "gun war peace",
+      "अंधे और बहिरे लोगों में भी ऊर्जा होती है।": "blind deaf energy"
+    };
+
     // ---------- ISL Grammar Conversion (Longest-Match-First Algorithm) ----------
     async function convertSentenceToGloss(sentence) {
-      const original = sentence.trim();
+      let original = sentence.trim();
       if (!original) return { tokens: [], semanticApplied: [], currentGlosses: [] };
+
+      // Check if input matches a Hindi sentence and convert to English
+      if (HINDI_TO_ENGLISH_MAP[original]) {
+        console.log(`Hindi sentence detected: "${original}"`);
+        console.log(`Converting to: "${HINDI_TO_ENGLISH_MAP[original]}"`);
+        original = HINDI_TO_ENGLISH_MAP[original];
+      }
 
       const cleaned = original
         .replace(/[.,!?;:]/g, '')
@@ -1051,14 +1053,6 @@
     const convertBtn = document.getElementById('convertBtn');
     const voiceBtn = document.getElementById('voiceBtn');
     const voiceStatusEl = document.getElementById('voiceStatus');
-    
-    // Translation API elements
-    const claudeApiKeyEl = document.getElementById('claudeApiKey');
-    const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
-    const clearApiKeyBtn = document.getElementById('clearApiKeyBtn');
-    const apiKeyStatusEl = document.getElementById('apiKeyStatus');
-    const autoTranslateEl = document.getElementById('autoTranslate');
-    const translationStatusEl = document.getElementById('translationStatus');
     const wordEl = document.getElementById('word');
     const statusEl = document.getElementById('status');
     const btnLoad = document.getElementById('load');
@@ -1252,30 +1246,11 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
     async function runSentenceConversion(sentence) {
       if (!convertBtn) return;
       convertBtn.disabled = true;
-      setStatus('Processing input …');
+      setStatus('Converting sentence …');
       const panel = document.getElementById('semanticPanel');
       if (panel) panel.style.display = 'none';
-      
       try {
-        let textToConvert = sentence;
-        
-        // Auto-translate if enabled and API key is configured
-        if (autoTranslateEl && autoTranslateEl.checked) {
-          const apiKey = localStorage.getItem('claude_api_key');
-          if (apiKey && containsIndicScript(sentence)) {
-            try {
-              const result = await translateToEnglish(sentence);
-              textToConvert = result.translated;
-              console.log('Translation result:', result);
-            } catch (translationError) {
-              console.warn('Translation failed, using original text:', translationError);
-              // Continue with original text if translation fails
-            }
-          }
-        }
-        
-        setStatus('Converting to ISL …');
-        lastConversion = await convertSentenceToGloss(textToConvert);
+        lastConversion = await convertSentenceToGloss(sentence);
         refreshConversionViews();
       } catch (err) {
         console.error('Sentence conversion failed:', err);
@@ -1398,159 +1373,6 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
           }
         }
       });
-    }
-
-    // ---------- Translation API Functions ----------
-    
-    // Load API key from localStorage
-    function loadApiKey() {
-      const stored = localStorage.getItem('claude_api_key');
-      if (stored) {
-        if (claudeApiKeyEl) claudeApiKeyEl.value = stored;
-        updateApiKeyStatus(true);
-        return stored;
-      }
-      updateApiKeyStatus(false);
-      return null;
-    }
-
-    // Save API key to localStorage
-    function saveApiKey() {
-      const key = claudeApiKeyEl ? claudeApiKeyEl.value.trim() : '';
-      if (key) {
-        localStorage.setItem('claude_api_key', key);
-        updateApiKeyStatus(true);
-        return true;
-      }
-      return false;
-    }
-
-    // Clear API key
-    function clearApiKey() {
-      localStorage.removeItem('claude_api_key');
-      if (claudeApiKeyEl) claudeApiKeyEl.value = '';
-      updateApiKeyStatus(false);
-    }
-
-    // Update API key status display
-    function updateApiKeyStatus(hasKey) {
-      if (!apiKeyStatusEl) return;
-      if (hasKey) {
-        apiKeyStatusEl.textContent = '✓ API key configured';
-        apiKeyStatusEl.style.color = 'var(--accent)';
-      } else {
-        apiKeyStatusEl.textContent = '⚠ No API key configured';
-        apiKeyStatusEl.style.color = 'var(--text-soft)';
-      }
-    }
-
-    // Detect if text contains Indian language characters
-    function containsIndicScript(text) {
-      // Unicode ranges for major Indian scripts
-      const indicRanges = [
-        /[\u0900-\u097F]/,  // Devanagari (Hindi, Marathi, Sanskrit)
-        /[\u0980-\u09FF]/,  // Bengali
-        /[\u0A00-\u0A7F]/,  // Gurmukhi (Punjabi)
-        /[\u0A80-\u0AFF]/,  // Gujarati
-        /[\u0B00-\u0B7F]/,  // Oriya
-        /[\u0B80-\u0BFF]/,  // Tamil
-        /[\u0C00-\u0C7F]/,  // Telugu
-        /[\u0C80-\u0CFF]/,  // Kannada
-        /[\u0D00-\u0D7F]/,  // Malayalam
-        /[\u0600-\u06FF]/   // Arabic/Urdu
-      ];
-      return indicRanges.some(range => range.test(text));
-    }
-
-    // Translate text using Claude API
-    async function translateToEnglish(text) {
-      const apiKey = localStorage.getItem('claude_api_key');
-      if (!apiKey) {
-        throw new Error('API key not configured. Please add your Claude API key in settings.');
-      }
-
-      if (!containsIndicScript(text)) {
-        // Text is already in English/Latin script
-        return { translated: text, wasTranslated: false, originalLanguage: 'English' };
-      }
-
-      try {
-        if (translationStatusEl) {
-          translationStatusEl.textContent = '🔄 Translating...';
-        }
-
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1024,
-            messages: [{
-              role: 'user',
-              content: `Translate the following Indian language text to English. Only provide the English translation, nothing else. If it's already in English, return it as is.\n\nText: ${text}`
-            }]
-          })
-        });
-
-        if (!response.ok) {
-          let errorMessage = 'Translation failed';
-          try {
-            const error = await response.json();
-            errorMessage = error.error?.message || errorMessage;
-            
-            // Provide more specific error messages
-            if (response.status === 401) {
-              errorMessage = 'Invalid API key. Please check your Claude API key.';
-            } else if (response.status === 429) {
-              errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
-            } else if (response.status === 400) {
-              errorMessage = 'Invalid request. ' + errorMessage;
-            } else if (response.status === 402) {
-              errorMessage = 'Billing required. Please add payment method to your Anthropic account.';
-            }
-          } catch (e) {
-            // If we can't parse the error, use the status text
-            errorMessage = `Error ${response.status}: ${response.statusText}`;
-          }
-          throw new Error(errorMessage);
-        }
-
-        const data = await response.json();
-        const translatedText = data.content[0].text.trim();
-
-        if (translationStatusEl) {
-          translationStatusEl.textContent = `✓ Translated: "${translatedText}"`;
-          setTimeout(() => {
-            if (translationStatusEl) translationStatusEl.textContent = '';
-          }, 5000);
-        }
-
-        return { 
-          translated: translatedText, 
-          wasTranslated: true, 
-          originalLanguage: 'Indian Language',
-          original: text 
-        };
-
-      } catch (error) {
-        console.error('Translation error:', error);
-        let displayMessage = error.message;
-        
-        // Handle network errors more specifically
-        if (error.message === 'Failed to fetch') {
-          displayMessage = 'Network error. Make sure you\'re running the app from a web server (http://localhost), not opening the file directly. Also check your internet connection.';
-        }
-        
-        if (translationStatusEl) {
-          translationStatusEl.textContent = `❌ ${displayMessage}`;
-          translationStatusEl.style.color = 'red';
-        }
-        throw error;
-      }
     }
 
     // ---------- JSON normalization ----------
@@ -2388,26 +2210,6 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
     };
 
     // ---------- events ----------
-    // API Key Management
-    if (saveApiKeyBtn) {
-      saveApiKeyBtn.addEventListener('click', () => {
-        if (saveApiKey()) {
-          alert('API key saved successfully!');
-        } else {
-          alert('Please enter a valid API key');
-        }
-      });
-    }
-
-    if (clearApiKeyBtn) {
-      clearApiKeyBtn.addEventListener('click', () => {
-        if (confirm('Are you sure you want to clear the saved API key?')) {
-          clearApiKey();
-          alert('API key cleared');
-        }
-      });
-    }
-
     // Sentence conversion
     if (convertBtn) {
       convertBtn.addEventListener('click', () => {
@@ -2449,11 +2251,11 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
     });
     
     // Single word playback
-    btnLoad.addEventListener('click', loadWord);
-    btnPlayPause.addEventListener('click', () => (playing ? pause() : play()));
-    btnStop.addEventListener('click', stop);
-    btnStep.addEventListener('click', stepOnce);
-    wordEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadWord(); });
+    if (btnLoad) btnLoad.addEventListener('click', loadWord);
+    if (btnPlayPause) btnPlayPause.addEventListener('click', () => (playing ? pause() : play()));
+    if (btnStop) btnStop.addEventListener('click', stop);
+    if (btnStep) btnStep.addEventListener('click', stepOnce);
+    if (wordEl) wordEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadWord(); });
     window.addEventListener('keydown', (e) => {
   const active = document.activeElement;
   const isTyping = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
@@ -2488,7 +2290,6 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
     edgeColorEl.addEventListener('input', () => { edgeSwatch.style.background = edgeColorEl.value; });
 
     attachVoiceButton();
-    loadApiKey(); // Load saved API key from localStorage
     setStatus('ready - enter a sentence to convert to ISL glosses'); updateHud();
     refreshConversionViews();
   </script>

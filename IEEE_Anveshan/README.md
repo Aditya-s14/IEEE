@@ -1,12 +1,6 @@
-# ISL Translator
+# ISL Animation
 
 This project is designed to create animations of Indian Sign Language (ISL) signs from video recordings. It processes video files, extracts keypoint data, canonicalizes the signs, and provides tools for visualizing the animations.
-
-## 🆕 New Feature: Indian Language Translation
-
-The ISL Translator now supports **automatic translation from any Indian language to English** using Claude Sonnet 4.5 API! Type in Hindi, Bengali, Tamil, Telugu, or any other Indian language, and it will automatically translate to English before converting to ISL.
-
-👉 See [TRANSLATION_FEATURE.md](../TRANSLATION_FEATURE.md) for setup and usage instructions.
 
 ## Folder Structure
 
@@ -70,15 +64,4 @@ ISL_animation/
 
 - **`word_mapping.html`**: This file is used to map words to their corresponding sign language representations. It helps in organizing and accessing the sign data for different words.
 
-- **`word_mapping_comparison.html`**: ⭐ **Main ISL Translator Interface** - The primary application that combines sentence input, translation (from Indian languages), ISL conversion, and 3D sign language real world emulation. Includes voice input, translation API integration, and advanced visualization features.
-
 - **`check3D.py`**: This script is a utility for verifying and analyzing the 3D aspects of the sign language data. It can be used to check for inconsistencies or errors in the 3D keypoint data.
-
-## Features
-
-- ✨ **Multi-language Support**: Type in any Indian language (Hindi, Bengali, Tamil, Telugu, etc.)
-- 🤖 **AI-Powered Translation**: Uses Claude Sonnet 4.5 for accurate translation
-- 🎙️ **Voice Input**: Speak in any language and convert to ISL
-- 🎬 **Real-time Real World Emulation**: See sign language signs in 3D
-- 📊 **Semantic Matching**: Intelligent word matching and alternatives
-- 💾 **Secure Storage**: API keys stored safely in browser localStorage

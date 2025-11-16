@@ -526,6 +526,10 @@
       // Head (facial anchors)
       [POSE.NOSE, POSE.L_EYE], [POSE.L_EYE, POSE.L_EAR],
       [POSE.NOSE, POSE.R_EYE], [POSE.R_EYE, POSE.R_EAR],
+      // Face outline/contour (creates shield shape around face)
+      [POSE.L_EAR, POSE.MOUTH_LEFT],
+      [POSE.MOUTH_LEFT, POSE.MOUTH_RIGHT],
+      [POSE.MOUTH_RIGHT, POSE.R_EAR],
       // Clavicle
       [POSE.L_SHOULDER, POSE.R_SHOULDER],
       // Torso to hips
@@ -2479,7 +2483,7 @@ frameIndex: ${frameIndex}${extra ? '\n'+extra : ''}`;
 
     // Initialize the image-based fingerspelling popup
     initFingerspellPopup();
-    
+
     attachVoiceButton();
     setStatus('ready - enter a sentence to convert to ISL glosses'); updateHud();
     refreshConversionViews();
